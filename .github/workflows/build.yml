@@ -1,0 +1,54 @@
+name: Dreams jar
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Распаковать, собрать
+        run: |
+          set -e
+          # 1. MDK с GitHub
+          curl -L -o mdk.zip https://github.com/NeoForgeMDKs/MDK-1.21.1-ModDevGradle/archive/refs/heads/main.zip
+          unzip -q mdk.zip
+          mv MDK-1.21.1-ModDevGradle-main proj
+          rm -rf proj/src/main/java/com/example/examplemod
+
+          # 2. твой архив (первый zip в репозитории) поверх MDK
+          ZIP=$(ls *.zip | grep -v '^mdk.zip$' | head -n1)
+          unzip -q "$ZIP" -d unpacked
+          SRC=$(dirname "$(find unpacked -type d -path '*/src/main' | head -n1)")
+          cp -r "$SRC"/. proj/src/
+
+          # 3. gradle.properties
+          cd proj
+          sed -i \
+            -e 's/^mod_id=.*/mod_id=dreams/' \
+            -e 's/^mod_name=.*/mod_name=Dreams/' \
+            -e 's/^mod_license=.*/mod_license=MIT/' \
+            -e 's/^mod_version=.*/mod_version=0.2.0/' \
+            -e 's/^mod_group_id=.*/mod_group_id=com.example.dreams/' \
+            -e 's/^mod_authors=.*/mod_authors=YourName/' \
+            -e 's/^mod_description=.*/mod_description=Nightmares when you sleep./' \
+            gradle.properties
+
+          # 4. сборка
+          chmod +x gradlew
+          ./gradlew build --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dreams-jar
+          path: proj/build/libs/*.jar
